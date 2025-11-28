@@ -1,0 +1,10 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.12.1"
+manifest_format = "2.0"
+project_hash = "9718675cbea65af4eef6881ce7ed47d2780fea9a"
+
+[[deps.DataReader]]
+path = "."
+uuid = "a0aff591-8b5e-472e-9d15-fd720d7e0df8"
+version = "1.0.0-DEV"

@@ -1,0 +1,13 @@
+name = "DataReader"
+uuid = "a0aff591-8b5e-472e-9d15-fd720d7e0df8"
+authors = ["Gustavo Julio García Bernal"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.6.7"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
