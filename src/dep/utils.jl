@@ -21,9 +21,9 @@ DataFrame with columns for variable mappings across years
 """
 function read_varlist_files(
     varlists_dir::String;
-    ifile_name::String="ivars.csv", hfile_name::String="hvars.csv", comment::String="#")
-    ivars = CSV.read(joinpath(varlists_dir, ifile_name), DataFrame; comment)
-    hvars = CSV.read(joinpath(varlists_dir, hfile_name), DataFrame; comment)
+    i_list_filename::String="ivars.csv", h_list_filename::String="hvars.csv", comment::String="#")
+    ivars = CSV.read(joinpath(varlists_dir, i_list_filename), DataFrame; comment)
+    hvars = CSV.read(joinpath(varlists_dir, h_list_filename), DataFrame; comment)
     return ivars, hvars
 end
 
