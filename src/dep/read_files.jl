@@ -46,22 +46,19 @@ end
 
 
 function process_set(
-    datadir::String, identifiers, id_key;
+    datadir::String, identifiers, id_key, ivars::DataFrame, hvars::DataFrame;
     filefinder::Function,
-    varlists_dir::String=joinpath(datadir, "var_lists"),
     get_current_variables::Function,
-    postprocess::Function = (dfs...) -> dfs,
-    kwargs...   #ifile_name, hfile_name
+    postprocess::Function = (dfs...) -> dfs
 )
     raw = load_fileset(datadir, identifiers, filefinder, id_key; delim=";")
 
     # Variables of interest
-    all_ivars, all_hvars = read_varlist_files(varlists_dir; kwargs...)
     # - Current variables
-    ivars = get_current_variables(all_ivars; identifiers...)
-    hvars = get_current_variables(all_hvars; identifiers...)
+    c_ivars = get_current_variables(ivars; identifiers...)
+    c_hvars = get_current_variables(hvars; identifiers...)
     # - Extract individual and household dataframes
-    df_ii_wide, df_hh = extract_individuals_and_households(raw, ivars, hvars, id_key)
+    df_ii_wide, df_hh = extract_individuals_and_households(raw, c_ivars, c_hvars, id_key)
     # - Add identifiers
     for (key, val) in pairs(identifiers)
         df_ii_wide[!, key] .= val
@@ -70,14 +67,14 @@ function process_set(
 
     # Reshape individual dataframe from wide to long
     id_vars = [keys(identifiers)..., :hid]
-    df_ii = pivot_longer(df_ii_wide, id_vars, ivars)
+    df_ii = pivot_longer(df_ii_wide, id_vars, c_ivars)
 
     # Rename variables
-    rename!(df_ii, ivars)
-    rename!(df_hh, hvars)
+    rename!(df_ii, c_ivars)
+    rename!(df_hh, c_hvars)
     
     # Apply post-processing (e.g., compute derived variables)
-    return postprocess(df_ii, df_hh)
+    return postprocess(df_ii, df_hh, ivars, hvars)
 end
 
 
@@ -85,17 +82,22 @@ function read_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
     get_id_key::Function;
-    progress_label::Function=string,
-    kwargs... # filefinder, varlists_dir, get_current_variables, postprocess, ifile_name, hfile_name
+    varlists_dir::String=joinpath(datadir, "var_lists"),
+    preprocess::Function = (args...) -> args,
+    ifile_name, hfile_name,
+    kwargs... # filefinder, varlists_dir, get_current_variables, postprocess
 )    
     # Initialize results
     df_hh = DataFrame()
     df_ii = DataFrame()
     
+    # Lists of variables
+    ivars, hvars = preprocess(read_varlist_files(varlists_dir; ifile_name, hfile_name)...)
+
     # Process each identifier
     for identifiers in expand_identifiers(identifier_ranges...)
         # Process this identifier
-        temp_ii, temp_hh = process_set(datadir, identifiers, get_id_key(; identifiers...); kwargs...)
+        temp_ii, temp_hh = process_set(datadir, identifiers, get_id_key(; identifiers...), ivars, hvars; kwargs...)
         
         # Append data
         if nrow(df_ii) == 0
@@ -109,7 +111,7 @@ function read_database(
             df_hh = vcat(df_hh, temp_hh; cols=:union)
         end
         
-        @info "$(progress_label(identifiers)) included"
+        @info "$(string(identifiers)) included"
     end
     
     return df_ii, df_hh

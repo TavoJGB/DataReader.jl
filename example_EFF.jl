@@ -3,7 +3,7 @@ using DataReader
 # Preliminaries
 datadir = joinpath(pwd(), "..", "IWTdata", "data", "eff")
 hid_key=get_household_id_var(; year::Int, kwargs...) =  year == 2002 ? "h_number" : "h_$(year)"
-identifier_ranges = (:year => 2002:3:2020, :imputation => 1:5)
+identifier_ranges = (:year => [2002:3:2020;2022], :imputation => 1:5)
 filefinder(dir::String; year::Int, imputation::Int) = [
     joinpath(dir, "section6_$(year)_imp$(imputation).csv");
     joinpath(dir, "other_sections_$(year)_imp$(imputation).csv")
