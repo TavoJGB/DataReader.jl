@@ -84,15 +84,15 @@ function read_database(
     get_id_key::Function;
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = (args...) -> args,
-    i_list_filename::String="ivars.csv", h_list_filename::String="hvars.csv",
-    kwargs... # filefinder, varlists_dir, get_current_variables, postprocess
+    i_list_filename::String="ivars.csv", h_list_filename::String="hvars.csv", comment::String="#",
+    kwargs... # filefinder, get_current_variables, postprocess
 )    
     # Initialize results
     df_hh = DataFrame()
     df_ii = DataFrame()
     
     # Lists of variables
-    ivars, hvars = preprocess(read_varlist_files(varlists_dir; i_list_filename, h_list_filename)...)
+    ivars, hvars = preprocess(read_varlist_files(varlists_dir; i_list_filename, h_list_filename, comment)...)
 
     # Process each identifier
     for identifiers in expand_identifiers(identifier_ranges...)
