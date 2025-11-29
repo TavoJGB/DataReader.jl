@@ -84,7 +84,7 @@ function read_database(
     get_id_key::Function;
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = (args...) -> args,
-    ifile_name, hfile_name,
+    ifile_name::String="ivars.csv", hfile_name::String="hvars.csv",
     kwargs... # filefinder, varlists_dir, get_current_variables, postprocess
 )    
     # Initialize results
