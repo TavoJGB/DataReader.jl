@@ -63,7 +63,6 @@ end
 function process_simple_set(
     datadir::String, identifiers, id_key, vars::DataFrame;
     filefinder::Function,
-    get_current_variables::Function,
     postprocess::Function = (df, args...) -> df,
     kwargs...
 )
@@ -89,12 +88,10 @@ end
 function process_set(
     datadir::String, identifiers, id_key, ivars::DataFrame, hvars::DataFrame;
     filefinder::Function,
-    get_current_variables::Function,
     postprocess::Function = (dfs...) -> dfs,
     kwargs...
 )
     raw = load_fileset(datadir, identifiers, filefinder, id_key; kwargs...)
-    show(raw)
 
     # Variables of interest
     # - Current variables

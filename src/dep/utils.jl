@@ -2,6 +2,16 @@
     AUXILIARY FUNCTIONS
 ==========================================================================#
 
+function get_current_variables(varlist::DataFrame; year::Int, kwargs...)
+    isempty(varlist) && return Dict{String,String}()
+    # Filter rows valid for this year
+    valid_rows = @. (varlist.firsttime <= year) & (varlist.lasttime >= year)
+    # Create mapping: output name => source column name
+    return Dict(zip(varlist[valid_rows, :varkey], varlist[valid_rows, :varname]))
+end
+
+
+
 """
     read_varlist_file(filepath::String) -> DataFrame
 
