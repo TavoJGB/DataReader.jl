@@ -36,7 +36,7 @@ function load_fileset(filepaths::Vector{<:String}, id_key; kwargs...)
         # Verify same number of rows
         nr == nrow(df) || throw(ErrorException("Files in the same fileset but of different size"))
         # Merge on key
-        main = leftjoin(main, df; on=id_key)
+        leftjoin!(main, df; on=id_key)
     end
     return main
 end
@@ -44,6 +44,13 @@ load_fileset(datadir::String, identifiers, filefinder::Function, args...; kwargs
 
 
 
+function extract_rows(df::DataFrame, vars::Dict, id_key; kwargs...)    
+    # Identify columns
+    cols = find_columns(df, vars; kwargs...)
+    df_new = select(df, cols)
+    df_new.id = df[!, id_key]
+    return df_new
+end
 function extract_individuals_and_households(df::DataFrame, ivars::Dict, hvars::Dict, hid_key; kwargs...)    
     # Identify columns
     icols, hcols = find_columns(df, ivars, hvars; kwargs...)
@@ -58,6 +65,35 @@ end
 
 
 
+# Process set with single subject type (vars)
+function process_simple_set(
+    datadir::String, identifiers, id_key, vars::DataFrame;
+    filefinder::Function,
+    get_current_variables::Function,
+    postprocess::Function = (dfs...) -> dfs
+)
+
+    # Current variables of interest
+    c_vars = get_current_variables(vars; identifiers...)
+
+    # Load raw data
+    raw = load_fileset(datadir, identifiers, filefinder, id_key; delim=";", select=Symbol.([keys(c_vars); id_key]))
+
+    # - Extract individual and household dataframes
+    df = extract_rows(raw, c_vars, id_key)
+    # - Add identifiers
+    for (key, val) in pairs(identifiers)
+        df[!, key] .= val
+    end
+
+    # Rename variables
+    println(names(df))
+    # rename!(df, c_vars)
+    
+    # Apply post-processing (e.g., compute derived variables)
+    return postprocess(df, vars)
+end
+# Process set with two subject types (ivars and hvars)
 function process_set(
     datadir::String, identifiers, id_key, ivars::DataFrame, hvars::DataFrame;
     filefinder::Function,
@@ -91,6 +127,39 @@ function process_set(
 end
 
 
+function read_simple_database(
+    datadir::String,
+    identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
+    get_id_key::Function;
+    varlists_dir::String=joinpath(datadir, "var_lists"),
+    preprocess::Function = (args...) -> args,
+    list_filename::String="vars.csv",
+    comment::String="#",
+    kwargs... # filefinder, get_current_variables, postprocess
+)
+    # Initialize results
+    df = DataFrame()
+    
+    # Lists of variables
+    vars = only(preprocess(read_simple_varlist_files(varlists_dir; list_filename, comment)))
+
+    # Process each identifier
+    for identifiers in expand_identifiers(identifier_ranges...)
+        # Process this identifier
+        temp = process_simple_set(datadir, identifiers, get_id_key(; identifiers...), vars; kwargs...)
+        
+        # Append data
+        if nrow(df) == 0
+            df = temp
+        else
+            df = vcat(df, temp; cols=:union)
+        end
+        
+        @info "$(string(identifiers)) included"
+    end
+    
+    return df
+end
 function read_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},

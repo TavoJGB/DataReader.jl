@@ -9,5 +9,5 @@ module DataReader
     # Load dependencies
     include(joinpath(BASE_FOLDER, "src", "dep", "utils.jl"))
     include(joinpath(BASE_FOLDER, "src", "dep", "read_files.jl"))
-    export read_database
+    export read_database, read_simple_database
 end

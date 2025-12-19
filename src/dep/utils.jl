@@ -26,6 +26,12 @@ function read_varlist_files(
     hvars = CSV.read(joinpath(varlists_dir, h_list_filename), DataFrame; comment)
     return ivars, hvars
 end
+function read_simple_varlist_files(
+    varlists_dir::String;
+    list_filename::Union{String, Nothing}="vars.csv", comment::String="#"
+)
+    return CSV.read(joinpath(varlists_dir, list_filename), DataFrame; comment)
+end
 
 
 
@@ -68,7 +74,12 @@ function expand_identifiers(ranges::Pair{Symbol, <:AbstractVector}...)
 end
 
 
-
+function find_columns(
+    df::DataFrame, vars::Dict;
+    var_matcher::Function = (name, col) -> startswith(col, name * "_")
+)
+    return vcat([filter(col -> var_matcher(string(var), string(col)), names(df)) for var in keys(vars)]...)
+end
 function find_columns(
     df::DataFrame, ivars::Dict, hvars::Dict;
     ivar_matcher::Function = (name, col) -> startswith(col, name * "_"),
