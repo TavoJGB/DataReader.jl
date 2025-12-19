@@ -2,7 +2,6 @@ module DataReader
 
     using CSV           # for .csv
     using DataFrames
-    using StatFiles     # for .dta
 
     BASE_FOLDER = dirname(@__DIR__)
 

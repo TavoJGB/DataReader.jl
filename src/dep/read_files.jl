@@ -1,13 +1,14 @@
-function raw_reader(filepath::String; kwargs...)
-    ext = lowercase(splitext(filepath)[2])
-    if ext==".csv"
-        return CSV.read(filepath, DataFrame; kwargs...)
-    elseif ext == ".dta"
-        return DataFrame(load(filepath))
-    else
-        error("Unsupported file format: $ext")
-    end
-end
+# DEPRECATED
+# function raw_reader(filepath::String; kwargs...)
+#     ext = lowercase(splitext(filepath)[2])
+#     if ext==".csv"
+#         return CSV.read(filepath, DataFrame; kwargs...)
+#     elseif ext == ".dta"
+#         return DataFrame(load(filepath))
+#     else
+#         error("Unsupported file format: $ext")
+#     end
+# end
 
 
 
@@ -28,11 +29,11 @@ Merged DataFrame with all sections.
 load_fileset(filepath::String; kwargs...) = CSV.read(filepath, DataFrame; kwargs...)
 function load_fileset(filepaths::Vector{<:String}, id_key; kwargs...)
     # Load first file
-    main = raw_reader(filepaths[1]; kwargs...)
+    main = CSV.read(filepaths[1], DataFrame; kwargs...)
     nr = nrow(main)
     # Merge subsequent files
     for file in filepaths[2:end]
-        df = raw_reader(file; kwargs...)   
+        df = CSV.read(file, DataFrame; kwargs...)
         # Verify same number of rows
         nr == nrow(df) || throw(ErrorException("Files in the same fileset but of different size"))
         # Merge on key
