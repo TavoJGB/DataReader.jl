@@ -122,6 +122,7 @@ function read_simple_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
     get_id_key::Function;
+    verbose::Bool=true,
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = vars -> vars,
     list_filename::String="vars.csv",
@@ -146,7 +147,7 @@ function read_simple_database(
             df = vcat(df, temp; cols=:union)
         end
         
-        @info "$(string(identifiers)) included"
+        verbose && @info "$(string(identifiers)) included"
     end
     
     return df
