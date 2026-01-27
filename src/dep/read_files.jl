@@ -107,7 +107,7 @@ function process_set(
     datadir::String, identifiers, id_key, ivars::DataFrame, hvars::DataFrame;
     filefinder::Function,
     postprocess::Function = (dfs...) -> dfs,
-    kwargs...
+    kwargs... # get_current_variables
 )
     raw = load_fileset(datadir, identifiers, filefinder, id_key; kwargs...)
 
@@ -116,7 +116,7 @@ function process_set(
     c_ivars = get_current_variables(ivars; identifiers...)
     c_hvars = get_current_variables(hvars; identifiers...)
     # - Extract individual and household dataframes
-    df_ii_wide, df_hh = extract_individuals_and_households(raw, c_ivars, c_hvars, id_key)
+    df_ii_wide, df_hh = extract_individuals_and_households(raw, c_ivars, c_hvars, id_key; kwargs...)
     # - Add identifiers
     for (key, val) in pairs(identifiers)
         df_ii_wide[!, key] .= val
