@@ -61,17 +61,16 @@ end
 
 # Process set with single subject type (vars)
 function process_simple_set(
-    datadir::String, identifiers, id_key, vars::DataFrame;
+    datadir::String, identifiers, id_key, vars::DataFrame=DataFrame();
+    c_vars = get_current_variables(vars; identifiers...),
+    select = Symbol.([keys(c_vars)...; id_key]),
     filefinder::Function,
     postprocess::Function = (df, args...) -> df,
     kwargs...
 )
 
-    # Current variables of interest
-    c_vars = get_current_variables(vars; identifiers...)
-
     # Load raw data
-    df = load_fileset(datadir, identifiers, filefinder, id_key; select=Symbol.([keys(c_vars)...; id_key]), kwargs...)
+    df = load_fileset(datadir, identifiers, filefinder, id_key; select, kwargs...)
 
     # Add identifiers
     for (key, val) in pairs(identifiers)
