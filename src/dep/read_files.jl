@@ -60,6 +60,25 @@ end
 
 
 # Process set with single subject type (vars)
+# - No iteration on identifiers
+function process_simple_set(
+    datafile::String, id_key, vars::DataFrame=DataFrame();
+    c_vars = Dict(zip(vars.varkey, vars.varname)),
+    select = Symbol.([keys(c_vars)...; id_key]),
+    postprocess::Function = (df, args...) -> df,
+    kwargs...
+)
+
+    # Load raw data
+    df = load_fileset(datafile; select, kwargs...)
+
+    # Rename variables
+    rename!(df, c_vars)
+    
+    # Apply post-processing (e.g., compute derived variables)
+    return postprocess(df, vars)
+end
+# - Iterate over identifiers
 function process_simple_set(
     datadir::String, identifiers, id_key, vars::DataFrame=DataFrame();
     c_vars = get_current_variables(vars; identifiers...),
