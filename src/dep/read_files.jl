@@ -60,6 +60,25 @@ end
 
 
 # Process set with single subject type (vars)
+# - No iteration on identifiers
+function process_simple_set(
+    datafile::String, id_key, vars::DataFrame=DataFrame();
+    c_vars = Dict(zip(vars.varkey, vars.varname)),
+    select = Symbol.([keys(c_vars)...; id_key]),
+    postprocess::Function = (df, args...) -> df,
+    kwargs...
+)
+
+    # Load raw data
+    df = load_fileset(datafile; select, kwargs...)
+
+    # Rename variables
+    rename!(df, c_vars)
+    
+    # Apply post-processing (e.g., compute derived variables)
+    return postprocess(df, vars)
+end
+# - Iterate over identifiers
 function process_simple_set(
     datadir::String, identifiers, id_key, vars::DataFrame=DataFrame();
     c_vars = get_current_variables(vars; identifiers...),
@@ -116,7 +135,35 @@ function process_set(
     return postprocess(df_ii, df_hh, ivars, hvars)
 end
 
+# Read the entire database
+# - No iteration
+function read_simple_database(
+    datafile::String,
+    id_key;
+    verbose::Bool=true,
+    varlists_dir::String=joinpath(pwd(), "var_lists"),
+    preprocess::Function = vars -> vars,
+    list_filename::String="vars.csv",
+    comment::String="#",
+    get_select_fn::Union{Function, Nothing} = nothing,
+    kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
+)
+    # Initialize results
+    df = DataFrame()
+    
+    # Lists of variables
+    vars = preprocess(read_simple_varlist_files(varlists_dir; list_filename, comment))
 
+    # Compute select if function provided
+    if get_select_fn !== nothing
+        select = get_select_fn(vars)
+        kwargs = merge((; select), kwargs)
+    end
+
+    # Process dataset
+    return process_simple_set(datafile, id_key, vars; kwargs...)
+end
+# - Iterating over waves/years
 function read_simple_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
@@ -126,7 +173,7 @@ function read_simple_database(
     preprocess::Function = vars -> vars,
     list_filename::String="vars.csv",
     comment::String="#",
-    kwargs... # filefinder, get_current_variables, postprocess
+    kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
 )
     # Initialize results
     df = DataFrame()
