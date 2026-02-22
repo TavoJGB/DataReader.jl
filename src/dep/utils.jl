@@ -13,39 +13,6 @@ end
 
 
 """
-    read_varlist_file(filepath::String) -> DataFrame
-
-Read a CSV file containing variable names and return as DataFrame.
-Lines starting with # are treated as comments.
-The var list file should have the following columns:
-- `varname`: the name that we want to use in our analysis.
-- `varkey`: the name of the variable in the raw data files.
-- `firsttime`: the first year in which this variable appears.
-- `lasttime`: the last year in which this variable appears.
-
-# Arguments
-- `filepath`: Path to the CSV file with variable definitions
-
-# Returns
-DataFrame with columns for variable mappings across years
-"""
-function read_varlist_files(
-    varlists_dir::String;
-    i_list_filename::String="ivars.csv", h_list_filename::String="hvars.csv", comment::String="#")
-    ivars = CSV.read(joinpath(varlists_dir, i_list_filename), DataFrame; comment)
-    hvars = CSV.read(joinpath(varlists_dir, h_list_filename), DataFrame; comment)
-    return ivars, hvars
-end
-function read_simple_varlist_files(
-    varlists_dir::String;
-    list_filename::Union{String, Nothing}="vars.csv", comment::String="#"
-)
-    return CSV.read(joinpath(varlists_dir, list_filename), DataFrame; comment)
-end
-
-
-
-"""
     expand_identifiers(ranges::Pair{Symbol, <:AbstractVector}...)
 
 Create all combinations of identifier ranges as NamedTuples.
@@ -86,18 +53,9 @@ end
 
 function find_columns(
     df::DataFrame, vars::Dict;
-    var_matcher::Function = (name, col) -> startswith(col, name * "_")
+    var_matcher::Function = (name, col) -> (startswith(col, name * "_") || (col == name))
 )
     return vcat([filter(col -> var_matcher(string(var), string(col)), names(df)) for var in keys(vars)]...)
-end
-function find_columns(
-    df::DataFrame, ivars::Dict, hvars::Dict;
-    ivar_matcher::Function = (name, col) -> startswith(col, name * "_"),
-    hvar_matcher::Function = (name, col) -> (col == name)
-)
-    ivar_cols = vcat([filter(col -> ivar_matcher(string(var), string(col)), names(df)) for var in keys(ivars)]...)
-    hvar_cols = vcat([filter(col -> hvar_matcher(string(var), string(col)), names(df)) for var in keys(hvars)]...)
-    return ivar_cols, hvar_cols
 end
 
 

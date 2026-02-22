@@ -12,18 +12,24 @@
 
 
 
+#==========================================================================
+    BASIC FILE READING
+==========================================================================#
+
 """
     load_fileset(datadir::String, identifiers, filefinder::Vector{<:Function}, args...; kwargs...) -> DataFrame
 
 Load and merge multiple data files corresponding to a set of identifiers (e.g. year, imputation).
 
 # Arguments
-- `datadir`: Directory containing EFF data files.
+- `datadir`: Directory containing data files.
 - `identifiers`: Tuple or NamedTuple of identifiers (e.g. year, imputation).
-- `filefinder`: Function to find file path(s) based on datadir and identifiers.
+- `filefinder`: Function to find filepath(s) based on datadir and identifiers.
+- `id_key`: Only for multiple files: the key to merge on (e.g. household ID).
+- `kwargs...`: Additional keyword arguments to pass to CSV.read (e.g. `select` for variable selection).
 
 # Returns
-Merged DataFrame with all sections.
+DataFrame.
 """
 
 load_fileset(filepath::String; kwargs...) = CSV.read(filepath, DataFrame; kwargs...)
@@ -45,22 +51,11 @@ load_fileset(datadir::String, identifiers, filefinder::Function, args...; kwargs
 
 
 
-function extract_individuals_and_households(df::DataFrame, ivars::Dict, hvars::Dict, hid_key; kwargs...)    
-    # Identify columns
-    icols, hcols = find_columns(df, ivars, hvars; kwargs...)
-    # Extract
-    df_ii = select(df, icols)
-    df_hh = select(df, hcols)
-    # Ensure that both datasets include household identifier
-    df_ii.hid = df[!, hid_key]
-    df_hh.hid = df[!, hid_key]
-    return df_ii, df_hh
-end
+#==========================================================================
+    AUXILIARY CALLERS
+==========================================================================#
 
-
-
-# Process set with single subject type (vars)
-# - No iteration on identifiers
+# No iteration on identifiers
 function process_simple_set(
     datafile::String, id_key, vars::DataFrame=DataFrame();
     c_vars = Dict(zip(vars.varkey, vars.varname)),
@@ -78,7 +73,8 @@ function process_simple_set(
     # Apply post-processing (e.g., compute derived variables)
     return postprocess(df, vars)
 end
-# - Iterate over identifiers
+
+# Iterate over identifiers
 function process_simple_set(
     datadir::String, identifiers, id_key, vars::DataFrame=DataFrame();
     c_vars = get_current_variables(vars; identifiers...),
@@ -102,48 +98,21 @@ function process_simple_set(
     # Apply post-processing (e.g., compute derived variables)
     return postprocess(df, vars)
 end
-# Process set with two subject types (ivars and hvars)
-function process_set(
-    datadir::String, identifiers, id_key, ivars::DataFrame, hvars::DataFrame;
-    filefinder::Function,
-    postprocess::Function = (dfs...) -> dfs,
-    kwargs... # get_current_variables
-)
-    raw = load_fileset(datadir, identifiers, filefinder, id_key; kwargs...)
 
-    # Variables of interest
-    # - Current variables
-    c_ivars = get_current_variables(ivars; identifiers...)
-    c_hvars = get_current_variables(hvars; identifiers...)
-    # - Extract individual and household dataframes
-    df_ii_wide, df_hh = extract_individuals_and_households(raw, c_ivars, c_hvars, id_key; kwargs...)
-    # - Add identifiers
-    for (key, val) in pairs(identifiers)
-        df_ii_wide[!, key] .= val
-        df_hh[!, key] .= val
-    end
 
-    # Reshape individual dataframe from wide to long
-    id_vars = [keys(identifiers)..., :hid]
-    df_ii = pivot_longer(df_ii_wide, id_vars, c_ivars)
 
-    # Rename variables
-    rename!(df_ii, c_ivars)
-    rename!(df_hh, c_hvars)
-    
-    # Apply post-processing (e.g., compute derived variables)
-    return postprocess(df_ii, df_hh, ivars, hvars)
-end
+#==========================================================================
+    DATABASE READER
+==========================================================================#
 
-# Read the entire database
-# - No iteration
-function read_simple_database(
+# No iteration (f.e. no iteration over years, i.e. no identifiers)
+function read_database(
     datafile::String,
     id_key;
     verbose::Bool=true,
     varlists_dir::String=joinpath(pwd(), "var_lists"),
     preprocess::Function = vars -> vars,
-    list_filename::String="vars.csv",
+    varlist_filename::String="vars.csv",
     comment::String="#",
     get_select_fn::Union{Function, Nothing} = nothing,
     kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
@@ -152,7 +121,7 @@ function read_simple_database(
     df = DataFrame()
     
     # Lists of variables
-    vars = preprocess(read_simple_varlist_files(varlists_dir; list_filename, comment))
+    vars = preprocess(CSV.read(joinpath(varlists_dir, varlist_filename), DataFrame; comment))
 
     # Compute select if function provided
     if get_select_fn !== nothing
@@ -163,15 +132,16 @@ function read_simple_database(
     # Process dataset
     return process_simple_set(datafile, id_key, vars; kwargs...)
 end
-# - Iterating over waves/years
-function read_simple_database(
+
+# Iterating over waves/years
+function read_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
     get_id_key::Function;
     verbose::Bool=true,
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = vars -> vars,
-    list_filename::String="vars.csv",
+    varlist_filename::String="vars.csv",
     comment::String="#",
     kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
 )
@@ -179,7 +149,7 @@ function read_simple_database(
     df = DataFrame()
     
     # Lists of variables
-    vars = preprocess(read_simple_varlist_files(varlists_dir; list_filename, comment))
+    vars = preprocess(CSV.read(joinpath(varlists_dir, varlist_filename), DataFrame; comment))
 
     # Process each identifier
     for identifiers in expand_identifiers(identifier_ranges...)
@@ -198,47 +168,92 @@ function read_simple_database(
     
     return df
 end
-function read_database(
+
+
+
+#==========================================================================
+    GENERALIZED MULTI-DATASET CASE
+==========================================================================#
+
+# Auxiliary caller: process one identifier set with N varlists
+function process_multilevel_set(
+    datadir::String, identifiers, id_key, vars::DataFrame;
+    id_name::Symbol=:hid,
+    filefinder::Function,
+    postprocess::Function = (dfs...) -> dfs,
+    do_rename::Bool=true,
+    kwargs... # get_current_variables
+)
+    raw = load_fileset(datadir, identifiers, filefinder, id_key; kwargs...)
+
+    # Variables of interest
+    varlists = [filter(:level => (lv -> lv==x), vars) for x in unique(vars.level)]
+
+    # Build one dataframe per varlist
+    dfs = DataFrame[]
+    for vs in varlists
+        c_vars = get_current_variables(vs; identifiers...)
+        cols = find_columns(raw, c_vars)
+        temp = select(raw, cols)
+        temp[!, id_name] = raw[!, id_key]
+
+        for (key, val) in pairs(identifiers)
+            temp[!, key] .= val
+        end
+
+        do_rename && rename!(temp, c_vars)
+        push!(dfs, temp)
+    end
+    
+    # Apply post-processing (e.g., compute derived variables)
+    return postprocess(dfs..., varlists...)
+end
+
+# Database reader
+function read_multilevel_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
     get_id_key::Function;
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = (args...) -> args,
-    i_list_filename::String="ivars.csv", h_list_filename::String="hvars.csv", comment::String="#",
+    varlist_filename::String="vars.csv",
+    comment::String="#",
     kwargs... # filefinder, get_current_variables, postprocess
 )    
-    # Initialize results
-    df_hh = DataFrame()
-    df_ii = DataFrame()
-    
+
     # Lists of variables
-    ivars, hvars = preprocess(read_varlist_files(varlists_dir; i_list_filename, h_list_filename, comment)...)
+    vars = preprocess(CSV.read(joinpath(varlists_dir, varlist_filename), DataFrame; comment))
+
+    # Initialize results
+    ndatasets = vars.level |> unique |> length
+    full_dfs = [DataFrame() for _ in 1:ndatasets]
 
     # Process each identifier
     for identifiers in expand_identifiers(identifier_ranges...)
         # Process this identifier
-        temp_ii, temp_hh = process_set(datadir, identifiers, get_id_key(; identifiers...), ivars, hvars; kwargs...)
-        
+        temp_dfs = process_multilevel_set(datadir, identifiers, get_id_key(; identifiers...), vars; kwargs...)
+
+        length(temp_dfs) == ndatasets || throw(ErrorException("postprocess must return $ndatasets dataset(s)"))
+
         # Append data
-        if nrow(df_ii) == 0
-            df_ii = temp_ii
-        else
-            df_ii = vcat(df_ii, temp_ii; cols=:union)
-        end
-        if nrow(df_hh) == 0
-            df_hh = temp_hh
-        else
-            df_hh = vcat(df_hh, temp_hh; cols=:union)
+        for i in eachindex(full_dfs)
+            if nrow(full_dfs[i]) == 0
+                full_dfs[i] = temp_dfs[i]
+            else
+                full_dfs[i] = vcat(full_dfs[i], temp_dfs[i]; cols=:union)
+            end
         end
         
         @info "$(string(identifiers)) included"
     end
     
-    return df_ii, df_hh
+    return full_dfs
 end
-function read_database(
+
+# Auxiliary caller to pass key directly, instead of a function
+function read_multilevel_database(
     datadir::String, identifier_ranges::Tuple, id_key; kwargs...)
-    return read_database(
+    return read_multilevel_database(
         datadir, identifier_ranges,
         (; kwargs...) -> id_key;
         kwargs...
