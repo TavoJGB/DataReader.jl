@@ -214,6 +214,7 @@ function read_multilevel_database(
     datadir::String,
     identifier_ranges::Tuple{Vararg{Pair{Symbol, <:AbstractVector}}},
     get_id_key::Function;
+    verbose::Bool=true,
     varlists_dir::String=joinpath(datadir, "var_lists"),
     preprocess::Function = (args...) -> args,
     varlist_filename::String="vars.csv",
@@ -244,7 +245,7 @@ function read_multilevel_database(
             end
         end
         
-        @info "$(string(identifiers)) included"
+        verbose && @info "$(string(identifiers)) included"
     end
     
     return full_dfs
