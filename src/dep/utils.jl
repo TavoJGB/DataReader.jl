@@ -2,11 +2,25 @@
     AUXILIARY FUNCTIONS
 ==========================================================================#
 
-function get_current_variables(varlist::DataFrame; year::Int, kwargs...)
+"""
+    get_current_variables(varlist::DataFrame; kwargs...) -> Dict{String,String}
+
+Generic default: maps varkey => varname for all rows without filtering.
+"""
+function get_current_variables(varlist::DataFrame; kwargs...)
     isempty(varlist) && return Dict{String,String}()
-    # Filter rows valid for this year
+    return Dict(zip(varlist.varkey, varlist.varname))
+end
+
+"""
+    get_time_filtered_variables(varlist::DataFrame; year::Int, kwargs...) -> Dict{String,String}
+
+Specialized version for time-windowed data (e.g., EFF, SCF).
+Filters rows where `firsttime <= year <= lasttime`.
+"""
+function get_time_filtered_variables(varlist::DataFrame; year::Int, kwargs...)
+    isempty(varlist) && return Dict{String,String}()
     valid_rows = @. (varlist.firsttime <= year) & (varlist.lasttime >= year)
-    # Create mapping: output name => source column name
     return Dict(zip(varlist[valid_rows, :varkey], varlist[valid_rows, :varname]))
 end
 

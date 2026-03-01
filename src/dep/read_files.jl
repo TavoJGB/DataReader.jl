@@ -58,17 +58,20 @@ load_fileset(datadir::String, identifiers, filefinder::Function, args...; kwargs
 # No iteration on identifiers
 function process_simple_set(
     datafile::String, id_key, vars::DataFrame=DataFrame();
-    c_vars = Dict(zip(vars.varkey, vars.varname)),
-    select = Symbol.([keys(c_vars)...; id_key]),
+    c_vars::AbstractDict{<:AbstractString, <:AbstractString} = get_current_variables(vars),
+    get_select_fn::Union{Function, Nothing} = nothing,
+    do_rename::Bool = true,
     postprocess::Function = (df, args...) -> df,
     kwargs...
 )
+    # Column selection: custom function or default from c_vars
+    select = get_select_fn !== nothing ? get_select_fn(vars) : Symbol.([keys(c_vars)...; id_key])
 
     # Load raw data
     df = load_fileset(datafile; select, kwargs...)
 
     # Rename variables
-    rename!(df, c_vars)
+    do_rename && !isempty(c_vars) && rename!(df, c_vars)
     
     # Apply post-processing (e.g., compute derived variables)
     return postprocess(df, vars)
@@ -77,12 +80,18 @@ end
 # Iterate over identifiers
 function process_simple_set(
     datadir::String, identifiers, id_key, vars::DataFrame=DataFrame();
-    c_vars = get_current_variables(vars; identifiers...),
-    select = Symbol.([keys(c_vars)...; id_key]),
+    variable_mapper::Function = get_current_variables,
+    get_select_fn::Union{Function, Nothing} = nothing,
+    do_rename::Bool = true,
     filefinder::Function,
     postprocess::Function = (df, args...) -> df,
     kwargs...
 )
+    # Variable mapping
+    c_vars = variable_mapper(vars; identifiers...)
+
+    # Column selection: custom function or default from c_vars
+    select = get_select_fn !== nothing ? get_select_fn(vars) : Symbol.([keys(c_vars)...; id_key])
 
     # Load raw data
     df = load_fileset(datadir, identifiers, filefinder, id_key; select, kwargs...)
@@ -93,7 +102,7 @@ function process_simple_set(
     end
 
     # Rename variables
-    rename!(df, c_vars)
+    do_rename && !isempty(c_vars) && rename!(df, c_vars)
     
     # Apply post-processing (e.g., compute derived variables)
     return postprocess(df, vars)
@@ -114,20 +123,10 @@ function read_database(
     preprocess::Function = vars -> vars,
     varlist_filename::String="vars.csv",
     comment::String="#",
-    get_select_fn::Union{Function, Nothing} = nothing,
-    kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
+    kwargs... # get_select_fn, postprocess, c_vars, do_rename
 )
-    # Initialize results
-    df = DataFrame()
-    
     # Lists of variables
     vars = preprocess(CSV.read(joinpath(varlists_dir, varlist_filename), DataFrame; comment))
-
-    # Compute select if function provided
-    if get_select_fn !== nothing
-        select = get_select_fn(vars)
-        kwargs = merge((; select), kwargs)
-    end
 
     # Process dataset
     return process_simple_set(datafile, id_key, vars; kwargs...)
@@ -143,7 +142,7 @@ function read_database(
     preprocess::Function = vars -> vars,
     varlist_filename::String="vars.csv",
     comment::String="#",
-    kwargs... # filefinder, get_current_variables, postprocess, c_vars, select
+    kwargs... # filefinder, variable_mapper, get_select_fn, postprocess, do_rename
 )
     # Initialize results
     df = DataFrame()
@@ -180,9 +179,10 @@ function process_multilevel_set(
     datadir::String, identifiers, id_key, vars::DataFrame;
     id_name::Symbol=:hid,
     filefinder::Function,
+    variable_mapper::Function = get_current_variables,
     postprocess::Function = (dfs...) -> dfs,
     do_rename::Bool=true,
-    kwargs... # get_current_variables
+    kwargs...
 )
     raw = load_fileset(datadir, identifiers, filefinder, id_key; kwargs...)
 
@@ -192,7 +192,7 @@ function process_multilevel_set(
     # Build one dataframe per varlist
     dfs = DataFrame[]
     for vs in varlists
-        c_vars = get_current_variables(vs; identifiers...)
+        c_vars = variable_mapper(vs; identifiers...)
         cols = find_columns(raw, c_vars)
         temp = select(raw, cols)
         temp[!, id_name] = raw[!, id_key]
@@ -219,7 +219,7 @@ function read_multilevel_database(
     preprocess::Function = (args...) -> args,
     varlist_filename::String="vars.csv",
     comment::String="#",
-    kwargs... # filefinder, get_current_variables, postprocess
+    kwargs... # filefinder, variable_mapper, postprocess, do_rename
 )    
 
     # Lists of variables
