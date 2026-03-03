@@ -84,11 +84,14 @@ function pivot_longer(
     dfs = DataFrame[]   
     # Iterate on variables
     for (varkey, varname) in vars
-        temp = stack(wide, Regex("^$(varkey)$(escaped_sep)\\d+\$"), id_cols, 
-                     variable_name=pivot_key, value_name=varkey) #value_name=varname)
-            # I could rename directly here by setting value_name=varname
-            # but then I need to make a difference with non-pivoted
-            # sets, that would need to be renamed in a different place.
+        rgx = Regex("^$(varkey)$(escaped_sep)\\d+\$")
+        matching_cols = filter(col -> occursin(rgx, string(col)), names(wide))
+        if isempty(matching_cols)
+            @warn "pivot_longer: no columns matching regex $(rgx) for varkey '$(varkey)' — skipping"
+            continue
+        end
+        temp = stack(wide, rgx, id_cols,
+                     variable_name=pivot_key, value_name=varkey)
         # Extract pivot identifier from column name: e.g., "varname_1" => pivot id = "1"
         temp[!, pivot_key] = [parse(Int, split(String(x), pivot_sep)[end]) for x in temp[!, pivot_key]]
         push!(dfs, temp)
