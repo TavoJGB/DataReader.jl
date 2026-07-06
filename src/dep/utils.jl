@@ -27,6 +27,20 @@ end
 
 
 """
+    get_selected_varnames(varlist::DataFrame; variable_mapper::Function=get_current_variables, kwargs...) -> Vector{String}
+
+Return output variable names implied by `variable_mapper` for the current identifiers,
+deduplicated while preserving first appearance order.
+"""
+function get_selected_varnames(varlist::DataFrame; variable_mapper::Function=get_current_variables, kwargs...)
+    isempty(varlist) && return String[]
+    mapped_vars = variable_mapper(varlist; kwargs...)
+    return mapped_vars |> values |> collect |> unique
+end
+
+
+
+"""
     expand_identifiers(ranges::Pair{Symbol, <:AbstractVector}...)
 
 Create all combinations of identifier ranges as NamedTuples.
